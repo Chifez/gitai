@@ -5,11 +5,16 @@ import "context"
 
 // Options configures the LLM message generation.
 type Options struct {
-	Style      string // "conventional" | "simple" | "emoji"
-	MaxLength  int    // max chars in subject line
-	Lang       string // language for commit message
-	Context    string // optional user-supplied hint
-	IncludeBody bool  // include multi-line body
+	Style       string // "conventional" | "simple" | "emoji"
+	MaxLength   int    // max chars in subject line
+	Lang        string // language for commit message
+	Context     string // optional user-supplied hint
+	IncludeBody bool   // include multi-line body
+}
+
+type StreamEvent struct {
+	Text string
+	Err  error
 }
 
 // Provider is the interface that any LLM backend must implement.
@@ -18,6 +23,7 @@ type Provider interface {
 	// Implementations must respect ctx for cancellation.
 	GenerateMessage(ctx context.Context, diff string, opts Options) (string, error)
 
+	GenerateMessageStream(ctx context.Context, diff string, opts Options) <-chan StreamEvent
 	// Name returns a human-readable identifier used in error messages and config.
 	Name() string
 }

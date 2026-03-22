@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	greenBold   = color.New(color.FgGreen, color.Bold)
-	yellowBold  = color.New(color.FgYellow, color.Bold)
-	redBold     = color.New(color.FgRed, color.Bold)
-	cyanBold    = color.New(color.FgCyan, color.Bold)
-	magenta     = color.New(color.FgMagenta)
-	bold        = color.New(color.Bold)
-	dim         = color.New(color.Faint)
-	white       = color.New(color.FgWhite)
+	greenBold  = color.New(color.FgGreen, color.Bold)
+	yellowBold = color.New(color.FgYellow, color.Bold)
+	redBold    = color.New(color.FgRed, color.Bold)
+	cyanBold   = color.New(color.FgCyan, color.Bold)
+	magenta    = color.New(color.FgMagenta)
+	bold       = color.New(color.Bold)
+	dim        = color.New(color.Faint)
+	white      = color.New(color.FgWhite)
 )
 
 // Success prints a green success message with a checkmark.
@@ -49,6 +49,11 @@ func Bold(format string, a ...interface{}) string {
 // Dim prints dim/muted text.
 func Dim(format string, a ...interface{}) string {
 	return dim.Sprintf(format, a...)
+}
+
+// Green returns green bold text (used for checkboxes).
+func Green(format string, a ...interface{}) string {
+	return greenBold.Sprintf(format, a...)
 }
 
 // Cyan returns cyan bold text (used for prompt keys).

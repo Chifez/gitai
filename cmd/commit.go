@@ -1,9 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Chifez/gitai/internal/config"
 	"github.com/Chifez/gitai/pkg/editor"
@@ -82,6 +87,12 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	var truncated bool
+	diff, truncated = git.SanitizeDiff(diff)
+	if truncated {
+		ui.Warn("Large diff detected, showing first %d tokens.", git.MaxTokens)
+	}
+
 	// --- Build provider ---
 	p, err := cfg.BuildProvider()
 	if err != nil {
@@ -98,10 +109,15 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		IncludeBody: cfg.IncludeBody,
 	}
 
-	ui.Info("Generating commit message...")
-	message, err := p.GenerateMessage(ctx, diff, opts)
+	message, err := streamMessage(ctx, p, diff, opts, "Generating commit message...")
+
 	if err != nil {
-		ui.Error("Failed to generate message: %v", err)
+		var apiErr *provider.APIError
+		if errors.As(err, &apiErr) {
+			ui.Error("%s", apiErr.UserMessage())
+		} else {
+			ui.Error("Failed to generate message: %v", err)
+		}
 		return err
 	}
 
@@ -113,6 +129,8 @@ func runCommit(cmd *cobra.Command, args []string) error {
 
 	// --- Review loop ---
 	skipReview, _ := cmd.Flags().GetBool("yes")
+	regenCount := 0
+	const maxRegens = 10
 	if !skipReview {
 		for {
 			var action editor.Action
@@ -125,10 +143,21 @@ func runCommit(cmd *cobra.Command, args []string) error {
 			case editor.ActionCommit:
 				// proceed to commit
 			case editor.ActionRegenerate:
-				ui.Info("Regenerating commit message...")
-				message, err = p.GenerateMessage(ctx, diff, opts)
+				regenCount++
+				if regenCount > maxRegens {
+					ui.Warn("Regeneration limit reached (%d). Please edit manually.", maxRegens)
+					continue
+				}
+
+				message, err = streamMessage(ctx, p, diff, opts, "Regenerating commit message...")
+
 				if err != nil {
-					ui.Error("Failed to regenerate: %v", err)
+					var apiErr *provider.APIError
+					if errors.As(err, &apiErr) {
+						ui.Error("%s", apiErr.UserMessage())
+					} else {
+						ui.Error("Failed to regenerate: %v", err)
+					}
 					return err
 				}
 				continue
@@ -158,18 +187,23 @@ func runCommit(cmd *cobra.Command, args []string) error {
 }
 
 // handleStaging handles all staging scenarios (A through F from the PRD).
-func handleStaging(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, args []string, pickMode, allMode, includeUntracked bool) error {
-	goCtx := cmd.Context()
+func handleStaging(ctx context.Context, cmd *cobra.Command, args []string, pickMode, allMode, includeUntracked bool) error {
 
 	switch {
 	case allMode:
 		// Scenario D: stage all
-		if err := git.StageAll(goCtx, includeUntracked); err != nil {
+		if err := git.StageAll(ctx, includeUntracked); err != nil {
 			return fmt.Errorf("failed to stage files: %w", err)
+		}
+		// Check if anything was actually staged
+		diff, _ := git.GetStagedDiff(ctx)
+		if diff == "" {
+			ui.Warn("No modified tracked files found. Nothing to commit.")
+			return fmt.Errorf("nothing to commit")
 		}
 		if !includeUntracked {
 			// Check for untracked files and warn
-			files, _ := git.GetChangedFiles(goCtx)
+			files, _ := git.GetChangedFiles(ctx)
 			for _, f := range files {
 				if f.Status == "untracked" {
 					ui.Warn("Untracked files not included. Use --include-untracked to add them.")
@@ -181,25 +215,31 @@ func handleStaging(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, 
 
 	case pickMode:
 		// Scenario C: interactive file picker
-		if err := handleFilePicker(goCtx); err != nil {
+		if err := handleFilePicker(ctx); err != nil {
 			return err
 		}
 
 	case len(args) > 0:
 		// Scenario B (or E if already staged): stage passed files
+		existingDiff, _ := git.GetStagedDiff(ctx)
+		alreadyStaged := existingDiff != ""
 		validPaths := validateFilePaths(args)
 		if len(validPaths) == 0 {
 			ui.Error("No valid changed files found. Nothing to commit.")
 			return fmt.Errorf("no valid files")
 		}
-		if err := git.StageFiles(goCtx, validPaths); err != nil {
+		if err := git.StageFiles(ctx, validPaths); err != nil {
 			return fmt.Errorf("failed to stage files: %w", err)
 		}
-		ui.Info("Staged %d file(s).", len(validPaths))
+		if alreadyStaged {
+			ui.Info("Using already-staged changes + %d newly staged file(s).", len(validPaths))
+		} else {
+			ui.Info("Staged %d file(s).", len(validPaths))
+		}
 
 	default:
 		// Check if anything is already staged (Scenario A)
-		diff, err := git.GetStagedDiff(goCtx)
+		diff, err := git.GetStagedDiff(ctx)
 		if err != nil {
 			return err
 		}
@@ -209,83 +249,79 @@ func handleStaging(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, 
 		}
 
 		// Scenario F: nothing staged, nothing passed — recovery flow
-		return handleRecoveryFlow(goCtx)
+		return handleRecoveryFlow(ctx)
 	}
 
 	return nil
 }
 
 // handleFilePicker runs the interactive file picker.
-func handleFilePicker(ctx interface{ Done() <-chan struct{} }) error {
-	goCtx, ok := ctx.(interface {
-		Done() <-chan struct{}
-		Err() error
-		Deadline() (interface{}, bool)
-		Value(interface{}) interface{}
-	})
-	_ = goCtx
-	_ = ok
+func handleFilePicker(ctx context.Context) error {
+	files, err := git.GetChangedFiles(ctx)
 
-	// Use a simpler context approach
-	files, err := git.GetChangedFiles(nil)
 	if err != nil {
 		return fmt.Errorf("failed to get changed files: %w", err)
 	}
-	if len(files) == 0 {
-		ui.Warn("No changed files found. Nothing to commit.")
-		return fmt.Errorf("no changed files")
-	}
+	selected := make(map[int]bool)
+	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Println()
-	ui.Info("Select files to stage (enter file numbers separated by spaces, or 'all'):")
-	fmt.Println()
+	for {
+		fmt.Print("\033[H\033[2J")
+		ui.Info("Pick files to stage (type number to toggle, press Enter to confirm):")
+		fmt.Println()
 
-	for i, f := range files {
-		fmt.Printf("  %s %s  %s\n", ui.Cyan("[%d]", i+1), f.Path, ui.Dim("(%s)", f.Status))
-	}
-	fmt.Println()
+		for i, f := range files {
+			checkbox := "[ ]"
 
-	fmt.Print(ui.Bold("Files to stage: "))
-	var input string
-	fmt.Scanln(&input)
+			if selected[i] {
+				checkbox = ui.Green("[x]")
+			}
+			fmt.Printf(" %s %2d: %-10s %s\n", checkbox, i+1, ui.Cyan(f.Status), f.Path)
+		}
 
-	if input == "" {
-		ui.Warn("No files selected. Exiting.")
-		return fmt.Errorf("no files selected")
+		fmt.Println()
+		fmt.Printf(" %s confirm and continue\n", ui.Cyan("[Enter]"))
+		fmt.Printf(" %s quit\n", ui.Cyan("[q]  "))
+		fmt.Println()
+
+		fmt.Print(ui.Bold("Selection: "))
+
+		rawInput, _ := reader.ReadString('\n')
+		input := strings.TrimSpace(rawInput)
+
+		if input == "" {
+			break
+		}
+
+		if input == "q" {
+			return fmt.Errorf("cancelled by user")
+		}
+
+		idx, err := strconv.Atoi(input)
+		if err == nil && idx > 0 && idx <= len(files) {
+			selected[idx-1] = !selected[idx-1]
+		} else {
+			ui.Warn("invalid selection: %s", input)
+			time.Sleep(500 * time.Millisecond)
+		}
 	}
 
 	var paths []string
-	if input == "all" {
-		for _, f := range files {
+
+	for i, f := range files {
+		if selected[i] {
 			paths = append(paths, f.Path)
-		}
-	} else {
-		// Parse numbers
-		for _, s := range splitInput(input) {
-			n, err := strconv.Atoi(s)
-			if err != nil || n < 1 || n > len(files) {
-				ui.Warn("Invalid selection: %s, skipping", s)
-				continue
-			}
-			paths = append(paths, files[n-1].Path)
 		}
 	}
 
 	if len(paths) == 0 {
-		ui.Warn("No valid files selected. Exiting.")
 		return fmt.Errorf("no files selected")
 	}
-
-	if err := git.StageFiles(nil, paths); err != nil {
-		return fmt.Errorf("failed to stage files: %w", err)
-	}
-
-	ui.Info("Staged %d file(s).", len(paths))
-	return nil
+	return git.StageFiles(ctx, paths)
 }
 
 // handleRecoveryFlow handles Scenario F — nothing staged, nothing passed.
-func handleRecoveryFlow(ctx interface{ Done() <-chan struct{} }) error {
+func handleRecoveryFlow(ctx context.Context) error {
 	fmt.Println()
 	ui.Warn("Nothing staged. What would you like to do?")
 	fmt.Println()
@@ -294,12 +330,13 @@ func handleRecoveryFlow(ctx interface{ Done() <-chan struct{} }) error {
 	fmt.Printf("  %s quit\n", ui.Cyan("[q]"))
 	fmt.Println()
 
-	var input string
-	fmt.Scanln(&input)
+	reader := bufio.NewReader(os.Stdin)
+	rawInput, _ := reader.ReadString('\n')
+	input := strings.TrimSpace(rawInput)
 
 	switch input {
 	case "a":
-		if err := git.StageAll(nil, false); err != nil {
+		if err := git.StageAll(ctx, false); err != nil {
 			return fmt.Errorf("failed to stage files: %w", err)
 		}
 		ui.Info("Staged all modified tracked files.")
@@ -313,9 +350,7 @@ func handleRecoveryFlow(ctx interface{ Done() <-chan struct{} }) error {
 }
 
 // handlePush handles the push logic after a successful commit.
-func handlePush(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, cfg *config.Config) error {
-	goCtx := cmd.Context()
-
+func handlePush(ctx context.Context, cmd *cobra.Command, cfg *config.Config) error {
 	noPush, _ := cmd.Flags().GetBool("no-push")
 	forcePush, _ := cmd.Flags().GetBool("push")
 	forcePushLease, _ := cmd.Flags().GetBool("force-push")
@@ -336,7 +371,7 @@ func handlePush(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, cfg
 	// Get current branch if not specified
 	if branch == "" {
 		var err error
-		branch, err = git.GetCurrentBranch(goCtx)
+		branch, err = git.GetCurrentBranch(ctx)
 		if err != nil {
 			return fmt.Errorf("Push failed: could not determine current branch: %w", err)
 		}
@@ -344,17 +379,20 @@ func handlePush(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, cfg
 
 	// Situation 1: Brand new project — no remote
 	if remoteURL != "" {
+		if !isValidRemoteURL(remoteURL) {
+			return fmt.Errorf("Invalid remote URL format: %s. Use https://, git@, or ssh:// URLs.", remoteURL)
+		}
 		if remoteName == "" {
 			remoteName = cfg.DefaultRemoteName
 		}
-		if err := git.AddRemote(goCtx, remoteName, remoteURL); err != nil {
+		if err := git.AddRemote(ctx, remoteName, remoteURL); err != nil {
 			return fmt.Errorf("Push failed: could not add remote: %w", err)
 		}
 		ui.Success("Remote \"%s\" added.", remoteName)
 	}
 
 	// Check if remote exists
-	hasRemote, err := git.HasRemote(goCtx)
+	hasRemote, err := git.HasRemote(ctx)
 	if err != nil {
 		return fmt.Errorf("Push failed: %w", err)
 	}
@@ -371,13 +409,23 @@ func handlePush(ctx interface{ Done() <-chan struct{} }, cmd *cobra.Command, cfg
 	}
 
 	// Situation 2: New branch — no upstream
-	hasUpstream, _ := git.HasUpstream(goCtx)
+	hasUpstream, _ := git.HasUpstream(ctx)
 	if !hasUpstream && cfg.AutoSetUpstream {
 		pushOpts.SetUpstream = true
 	}
 
-	if err := git.Push(goCtx, pushOpts); err != nil {
-		return fmt.Errorf("Push failed: %w", err)
+	if err := git.Push(ctx, pushOpts); err != nil {
+		errMsg := err.Error()
+		switch {
+		case strings.Contains(errMsg, "Authentication") || strings.Contains(errMsg, "fatal: could not read Password"):
+			return fmt.Errorf("Push failed: authentication error. Check your git credentials or SSH keys.")
+		case strings.Contains(errMsg, "rejected") || strings.Contains(errMsg, "non-fast-forward"):
+			return fmt.Errorf("Push failed: branch is behind remote. Run `git pull --rebase` then try again.")
+		case strings.Contains(errMsg, "Could not resolve host"):
+			return fmt.Errorf("Push failed: could not reach remote. Commit is saved locally.")
+		default:
+			return fmt.Errorf("Push failed: %w", err)
+		}
 	}
 
 	if pushOpts.SetUpstream {
@@ -418,6 +466,13 @@ func getStringFlag(cmd *cobra.Command, name string) string {
 	return v
 }
 
+func isValidRemoteURL(url string) bool {
+	return strings.HasPrefix(url, "https://") ||
+		strings.HasPrefix(url, "http://") ||
+		strings.HasPrefix(url, "git@") ||
+		strings.HasPrefix(url, "ssh://")
+}
+
 func validateFilePaths(paths []string) []string {
 	var valid []string
 	for _, p := range paths {
@@ -439,21 +494,32 @@ func firstLine(s string) string {
 	return s
 }
 
-func splitInput(s string) []string {
-	var parts []string
-	current := ""
-	for _, c := range s {
-		if c == ' ' || c == ',' {
-			if current != "" {
-				parts = append(parts, current)
-				current = ""
-			}
-		} else {
-			current += string(c)
+func streamMessage(ctx context.Context, p provider.Provider, diff string, opts provider.Options, spinnerMsg string) (string, error) {
+	s := ui.StartSpinnerWithContext(ctx, spinnerMsg)
+	stream := p.GenerateMessageStream(ctx, diff, opts)
+
+	var sb strings.Builder
+	firstChunk := true
+
+	for events := range stream {
+		if events.Err != nil {
+			s.Stop()
+			return "", events.Err
 		}
+
+		if firstChunk {
+			s.Stop()
+			fmt.Println()
+
+			firstChunk = false
+		}
+		fmt.Print(events.Text)
+		sb.WriteString(events.Text)
 	}
-	if current != "" {
-		parts = append(parts, current)
+
+	if !firstChunk {
+		fmt.Println()
 	}
-	return parts
+
+	return sb.String(), nil
 }

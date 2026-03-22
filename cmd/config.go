@@ -59,7 +59,15 @@ var configSetCmd = &cobra.Command{
 			ui.Error("%v", err)
 			return err
 		}
-		ui.Success("Set %s = %s", args[0], args[1])
+		displayVal := args[1]
+		if args[0] == "api_key" {
+			if len(args[1]) > 4 {
+				displayVal = args[1][:4] + "..."
+			} else if args[1] != "" {
+				displayVal = "***"
+			}
+		}
+		ui.Success("Set %s = %s", args[0], displayVal)
 		return nil
 	},
 }

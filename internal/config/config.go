@@ -226,8 +226,10 @@ func GetValue(key string) (string, string, error) {
 	case "provider":
 		val = cfg.Provider
 	case "api_key":
-		if cfg.APIKey != "" {
+		if len(cfg.APIKey) > 4 {
 			val = cfg.APIKey[:4] + "..." // mask API key
+		} else if cfg.APIKey != "" {
+			val = "***"
 		}
 	case "model":
 		val = cfg.Model
@@ -343,6 +345,10 @@ func (c *Config) BuildProvider() (provider.Provider, error) {
 
 // RunSetupWizard runs the first-time setup wizard.
 func RunSetupWizard() (*Config, error) {
+	// Clean up temp config if interrupted
+	path, _ := ConfigPath()
+	defer os.Remove(path + ".tmp")
+
 	ui.Info("No config found. Running first-time setup...")
 	fmt.Println()
 
@@ -389,7 +395,7 @@ func RunSetupWizard() (*Config, error) {
 		return nil, err
 	}
 
-	path, _ := ConfigPath()
+	path, _ = ConfigPath()
 	ui.Success("Config saved to %s", path)
 	ui.Info("Continuing with your commit...")
 	fmt.Println()

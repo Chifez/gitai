@@ -26,6 +26,32 @@ func (m *MockProvider) GenerateMessage(ctx context.Context, diff string, opts pr
 	return m.Message, nil
 }
 
+func (m *MockProvider) GenerateMessageStream(ctx context.Context, diff string, opts provider.Options) <-chan provider.StreamEvent {
+
+	m.CallCount++
+
+	ch := make(chan provider.StreamEvent)
+
+	go func() {
+		defer close(ch)
+
+		if m.Err != nil {
+			select {
+			case <-ctx.Done():
+
+			case ch <- provider.StreamEvent{Err: m.Err}:
+			}
+			return
+		}
+		select {
+		case <-ctx.Done():
+
+		case ch <- provider.StreamEvent{Text: m.Message}:
+		}
+	}()
+	return ch
+}
+
 // Name returns the mock provider name.
 func (m *MockProvider) Name() string {
 	return "mock"
