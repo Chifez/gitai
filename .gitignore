@@ -1,0 +1,27 @@
+# Binaries
+gitai
+gitai.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test and coverage
+*.test
+coverage.out
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+
+# Misc
+runs.json
