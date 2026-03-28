@@ -7,6 +7,14 @@ import (
 	"testing"
 )
 
+// mustRunGit is a test helper that calls runGit and fails the test on error.
+func mustRunGit(t *testing.T, ctx context.Context, args ...string) {
+	t.Helper()
+	if _, err := runGit(ctx, args...); err != nil {
+		t.Fatalf("git %v failed: %v", args, err)
+	}
+}
+
 func TestGitOperations(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
@@ -44,9 +52,9 @@ func TestGitOperations(t *testing.T) {
 		t.Error("expected a diff string, got empty")
 	}
 
-	runGit(ctx, "config", "user.name", "Test User")
-	runGit(ctx, "config", "user.email", "test@example.com")
-	
+	mustRunGit(t, ctx, "config", "user.name", "Test User")
+	mustRunGit(t, ctx, "config", "user.email", "test@example.com")
+
 	if err := Commit(ctx, "feat: test message"); err != nil {
 		t.Fatalf("Commit failed: %v", err)
 	}
@@ -94,16 +102,16 @@ func TestStageAll_TrackedOnly(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
-	runGit(ctx, "init")
-	runGit(ctx, "config", "user.name", "Test")
-	runGit(ctx, "config", "user.email", "test@test.com")
+	mustRunGit(t, ctx, "init")
+	mustRunGit(t, ctx, "config", "user.name", "Test")
+	mustRunGit(t, ctx, "config", "user.email", "test@test.com")
 
 	// Create and commit a file
 	if err := os.WriteFile("tracked.txt", []byte("v1"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
-	runGit(ctx, "add", "tracked.txt")
-	runGit(ctx, "commit", "-m", "initial")
+	mustRunGit(t, ctx, "add", "tracked.txt")
+	mustRunGit(t, ctx, "commit", "-m", "initial")
 
 	// Modify tracked file and create an untracked file
 	if err := os.WriteFile("tracked.txt", []byte("v2"), 0644); err != nil {
@@ -133,9 +141,9 @@ func TestStageAll_IncludingUntracked(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
-	runGit(ctx, "init")
-	runGit(ctx, "config", "user.name", "Test")
-	runGit(ctx, "config", "user.email", "test@test.com")
+	mustRunGit(t, ctx, "init")
+	mustRunGit(t, ctx, "config", "user.name", "Test")
+	mustRunGit(t, ctx, "config", "user.email", "test@test.com")
 
 	if err := os.WriteFile("file.txt", []byte("hello"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
@@ -160,16 +168,16 @@ func TestGetChangedFiles_Clean(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
-	runGit(ctx, "init")
-	runGit(ctx, "config", "user.name", "Test")
-	runGit(ctx, "config", "user.email", "test@test.com")
+	mustRunGit(t, ctx, "init")
+	mustRunGit(t, ctx, "config", "user.name", "Test")
+	mustRunGit(t, ctx, "config", "user.email", "test@test.com")
 
 	// Create and commit a file
 	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
-	runGit(ctx, "add", ".")
-	runGit(ctx, "commit", "-m", "init")
+	mustRunGit(t, ctx, "add", ".")
+	mustRunGit(t, ctx, "commit", "-m", "init")
 
 	files, err := GetChangedFiles(ctx)
 	if err != nil {
@@ -189,9 +197,9 @@ func TestGetChangedFiles_AllStatuses(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
-	runGit(ctx, "init")
-	runGit(ctx, "config", "user.name", "Test")
-	runGit(ctx, "config", "user.email", "test@test.com")
+	mustRunGit(t, ctx, "init")
+	mustRunGit(t, ctx, "config", "user.name", "Test")
+	mustRunGit(t, ctx, "config", "user.email", "test@test.com")
 
 	// Create files and commit
 	if err := os.WriteFile("modify.txt", []byte("v1"), 0644); err != nil {
@@ -200,15 +208,15 @@ func TestGetChangedFiles_AllStatuses(t *testing.T) {
 	if err := os.WriteFile("delete.txt", []byte("v1"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
-	runGit(ctx, "add", ".")
-	runGit(ctx, "commit", "-m", "init")
+	mustRunGit(t, ctx, "add", ".")
+	mustRunGit(t, ctx, "commit", "-m", "init")
 
 	// Create different status scenarios
 	if err := os.WriteFile("modify.txt", []byte("v2"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
 	// Stage the deletion so git shows "D " (index deletion)
-	runGit(ctx, "rm", "delete.txt")
+	mustRunGit(t, ctx, "rm", "delete.txt")
 	if err := os.WriteFile("new.txt", []byte("new"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
@@ -243,7 +251,7 @@ func TestGetStagedDiff_Empty(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
-	runGit(ctx, "init")
+	mustRunGit(t, ctx, "init")
 
 	diff, err := GetStagedDiff(ctx)
 	if err != nil {
@@ -263,15 +271,15 @@ func TestPush_NoRemote(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
-	runGit(ctx, "init")
-	runGit(ctx, "config", "user.name", "Test")
-	runGit(ctx, "config", "user.email", "test@test.com")
+	mustRunGit(t, ctx, "init")
+	mustRunGit(t, ctx, "config", "user.name", "Test")
+	mustRunGit(t, ctx, "config", "user.email", "test@test.com")
 
 	if err := os.WriteFile("test.txt", []byte("hello"), 0644); err != nil {
 		t.Fatalf("WriteFile failed: %v", err)
 	}
-	runGit(ctx, "add", ".")
-	runGit(ctx, "commit", "-m", "init")
+	mustRunGit(t, ctx, "add", ".")
+	mustRunGit(t, ctx, "commit", "-m", "init")
 
 	err := Push(ctx, PushOptions{})
 	if err == nil {
@@ -319,3 +327,4 @@ func TestSanitizeDiff_Clean(t *testing.T) {
 		t.Error("expected unchanged diff")
 	}
 }
+
