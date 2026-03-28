@@ -24,7 +24,6 @@ func StartSpinnerWithContext(ctx context.Context, message string) *Spinner {
 		for {
 			select {
 			case <-s.stop:
-				// Clear the line
 				fmt.Print("\r\033[K")
 				return
 			case <-ctx.Done():

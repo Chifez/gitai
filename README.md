@@ -149,7 +149,7 @@ import (
 )
 ```
 
-All packages under `pkg/` are public and importable.
+All package under `pkg/` are public and importable.
 
 ## License
 

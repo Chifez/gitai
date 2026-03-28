@@ -111,7 +111,6 @@ func (o *OpenAI) GenerateMessage(ctx context.Context, diff string, opts provider
 
 		lastErr = err
 
-		// Handle rate limiting
 		if statusCode == 429 {
 			select {
 			case <-ctx.Done():
@@ -121,12 +120,10 @@ func (o *OpenAI) GenerateMessage(ctx context.Context, diff string, opts provider
 			continue
 		}
 
-		// Retry on 5xx server errors
 		if statusCode >= 500 {
 			continue
 		}
 
-		// Non-retryable errors
 		return "", err
 	}
 
@@ -159,7 +156,6 @@ func (o *OpenAI) doRequest(ctx context.Context, reqBody chatRequest) (string, in
 		return "", resp.StatusCode, fmt.Errorf("openai: failed to read response: %w", err)
 	}
 
-	// Handle HTTP error codes
 	if resp.StatusCode != http.StatusOK {
 		return "", resp.StatusCode, &provider.APIError{
 			StatusCode: resp.StatusCode,

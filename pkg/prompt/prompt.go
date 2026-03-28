@@ -35,11 +35,9 @@ var emojiMap = map[string]string{
 func BuildPrompt(diff string, opts Options) string {
 	var sb strings.Builder
 
-	// System instruction
 	sb.WriteString("You are an expert developer writing a git commit message. ")
 	sb.WriteString("Return ONLY the commit message. No preamble, no explanation, no markdown code fences.\n\n")
 
-	// Style instructions
 	switch opts.Style {
 	case "simple":
 		sb.WriteString("Write a single concise sentence. No type prefix, no scope, no body.\n")
@@ -52,34 +50,29 @@ func BuildPrompt(diff string, opts Options) string {
 		}
 		sb.WriteString("\n")
 		sb.WriteString("Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert\n")
-	default: // "conventional"
+	default:
 		sb.WriteString("Use the Conventional Commits 1.0.0 format: type(scope): description\n")
 		sb.WriteString("Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert\n")
 	}
 
-	// Max length
 	if opts.MaxLength > 0 {
 		sb.WriteString(fmt.Sprintf("Keep the subject line under %d characters.\n", opts.MaxLength))
 	}
 
-	// Body
 	if opts.IncludeBody && opts.Style != "simple" {
 		sb.WriteString("Include a brief multi-line body explaining the what and why of the changes.\n")
 	} else {
 		sb.WriteString("Do NOT include a body — subject line only.\n")
 	}
 
-	// Language
 	if opts.Lang != "" && strings.ToLower(opts.Lang) != "english" {
 		sb.WriteString(fmt.Sprintf("Write the commit message in %s.\n", opts.Lang))
 	}
 
-	// Context hint
 	if opts.Context != "" {
 		sb.WriteString(fmt.Sprintf("\nAdditional context from the developer: %s\n", opts.Context))
 	}
 
-	// Diff
 	sb.WriteString("\nHere is the staged diff:\n\n")
 	sb.WriteString(diff)
 

@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,16 +17,23 @@ import (
 type Action int
 
 const (
-	ActionCommit     Action = iota // Accept and commit
-	ActionEdit                     // Edit the message
-	ActionRegenerate               // Regenerate the message
-	ActionCancel                   // Cancel
+	ActionCommit     Action = iota
+	ActionEdit
+	ActionRegenerate
+	ActionCancel
 )
 
 // ReviewMessage displays the generated commit message and prompts the user
-// to accept, edit, regenerate, or cancel.
+// to accept, edit, regenerate, or cancel. Reads input from os.Stdin.
 func ReviewMessage(ctx context.Context, message string) (string, Action, error) {
+	return ReviewMessageWithReader(ctx, message, os.Stdin)
+}
+
+// ReviewMessageWithReader displays the generated commit message and prompts
+// the user using the provided reader for input.
+func ReviewMessageWithReader(ctx context.Context, message string, input io.Reader) (string, Action, error) {
 	ui.PrintMessage("Generated commit message:", message)
+	reader := bufio.NewReader(input)
 
 	for {
 		ui.Prompt([]ui.PromptOption{
@@ -35,13 +43,12 @@ func ReviewMessage(ctx context.Context, message string) (string, Action, error) 
 			{Key: "n", Label: "cancel"},
 		})
 
-		reader := bufio.NewReader(os.Stdin)
-		input, err := reader.ReadString('\n')
+		rawInput, err := reader.ReadString('\n')
 		if err != nil {
 			return "", ActionCancel, fmt.Errorf("failed to read input: %w", err)
 		}
 
-		switch strings.TrimSpace(strings.ToLower(input)) {
+		switch strings.TrimSpace(strings.ToLower(rawInput)) {
 		case "y":
 			return message, ActionCommit, nil
 
@@ -77,11 +84,9 @@ func editInEditor(message string) (string, error) {
 	}
 
 	if editorCmd == "" {
-		// Fallback: inline editing
-		return editInline(message)
+		return editInline(message, os.Stdin)
 	}
 
-	// Write message to temp file
 	tmpFile, err := os.CreateTemp("", "gitai-commit-*.txt")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
@@ -94,18 +99,15 @@ func editInEditor(message string) (string, error) {
 	}
 	tmpFile.Close()
 
-	// Open editor
 	cmd := exec.Command(editorCmd, tmpFile.Name())
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		// Editor exited non-zero — message unchanged
 		return message, nil
 	}
 
-	// Read edited message
 	edited, err := os.ReadFile(tmpFile.Name())
 	if err != nil {
 		return "", fmt.Errorf("failed to read edited message: %w", err)
@@ -115,7 +117,7 @@ func editInEditor(message string) (string, error) {
 }
 
 // editInline provides a simple fallback editor when $EDITOR is not set.
-func editInline(message string) (string, error) {
+func editInline(message string, input io.Reader) (string, error) {
 	fmt.Println()
 	ui.Info("No $EDITOR set. Edit the message below (enter an empty line to finish):")
 	fmt.Println()
@@ -123,7 +125,7 @@ func editInline(message string) (string, error) {
 	fmt.Println()
 	ui.Info("Enter new message (empty line to finish):")
 
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(input)
 	var lines []string
 	for scanner.Scan() {
 		line := scanner.Text()

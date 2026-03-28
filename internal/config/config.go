@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Chifez/gitai/pkg/provider"
+	"github.com/Chifez/gitai/pkg/provider/mock"
 	"github.com/Chifez/gitai/pkg/provider/openai"
 	"github.com/Chifez/gitai/pkg/ui"
 )
@@ -66,7 +67,6 @@ func ConfigPath() (string, error) {
 func Load(flagOverrides map[string]string) (*Config, error) {
 	cfg := Defaults()
 
-	// Load config file
 	path, err := ConfigPath()
 	if err != nil {
 		return nil, err
@@ -74,17 +74,11 @@ func Load(flagOverrides map[string]string) (*Config, error) {
 
 	data, err := os.ReadFile(path)
 	if err == nil {
-		// Config file exists, parse it
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
 			return nil, fmt.Errorf("failed to parse config file: %w", err)
 		}
 	}
-	// If file doesn't exist, we just use defaults — not an error
-
-	// Apply environment variable overrides
 	applyEnvOverrides(&cfg)
-
-	// Apply CLI flag overrides
 	applyFlagOverrides(&cfg, flagOverrides)
 
 	return &cfg, nil
@@ -147,7 +141,6 @@ func Save(cfg *Config) error {
 		return err
 	}
 
-	// Ensure directory exists with 0700 permissions
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
@@ -158,14 +151,13 @@ func Save(cfg *Config) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	// Atomic write: temp file → rename
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return fmt.Errorf("failed to write temp config: %w", err)
 	}
 
 	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp) // clean up
+		os.Remove(tmp)
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -218,7 +210,6 @@ func GetValue(key string) (string, string, error) {
 		return "", "", err
 	}
 
-	// Determine source
 	source := resolveSource(key)
 
 	var val string
@@ -227,7 +218,7 @@ func GetValue(key string) (string, string, error) {
 		val = cfg.Provider
 	case "api_key":
 		if len(cfg.APIKey) > 4 {
-			val = cfg.APIKey[:4] + "..." // mask API key
+			val = cfg.APIKey[:4] + "..."
 		} else if cfg.APIKey != "" {
 			val = "***"
 		}
@@ -269,7 +260,7 @@ func ListAll() ([]ConfigEntry, error) {
 	var entries []ConfigEntry
 	for _, key := range keys {
 		val, source, _ := GetValue(key)
-		_ = cfg // suppress unused
+		_ = cfg
 		entries = append(entries, ConfigEntry{Key: key, Value: val, Source: source})
 	}
 
@@ -286,12 +277,12 @@ type ConfigEntry struct {
 // resolveSource determines where a config value came from.
 func resolveSource(key string) string {
 	envMap := map[string]string{
-		"api_key":  "OPENAI_API_KEY",
-		"model":    "GITAI_MODEL",
-		"provider": "GITAI_PROVIDER",
-		"style":    "GITAI_STYLE",
+		"api_key":   "OPENAI_API_KEY",
+		"model":     "GITAI_MODEL",
+		"provider":  "GITAI_PROVIDER",
+		"style":     "GITAI_STYLE",
 		"auto_push": "GITAI_AUTO_PUSH",
-		"lang":     "GITAI_LANG",
+		"lang":      "GITAI_LANG",
 	}
 
 	if envVar, ok := envMap[key]; ok {
@@ -300,7 +291,6 @@ func resolveSource(key string) string {
 		}
 	}
 
-	// Check if config file exists and has this key
 	path, err := ConfigPath()
 	if err == nil {
 		if _, err := os.Stat(path); err == nil {
@@ -338,6 +328,11 @@ func (c *Config) BuildProvider() (provider.Provider, error) {
 			return nil, fmt.Errorf("OpenAI API key not found. Set OPENAI_API_KEY or run: gitai config set api_key YOUR_KEY")
 		}
 		return openai.New(c.APIKey, c.Model), nil
+
+	case "mock":
+		return &mock.MockProvider{
+			Message: "feat: integrated LLM streaming to CLI\n\nThis is a streaming test from the local mock provider!",
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown provider: %s", c.Provider)
 	}

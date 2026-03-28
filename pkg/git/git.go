@@ -13,7 +13,7 @@ import (
 // FileStatus represents the status of a changed file.
 type FileStatus struct {
 	Path   string
-	Status string // "modified", "added", "deleted", "untracked"
+	Status string
 }
 
 // PushOptions configures the git push command.
@@ -31,7 +31,6 @@ func GetStagedDiff(ctx context.Context) (string, error) {
 
 // GetChangedFiles returns all modified, added, deleted, and untracked files.
 func GetChangedFiles(ctx context.Context) ([]FileStatus, error) {
-	// Get tracked changes
 	out, err := runGit(ctx, "status", "--porcelain")
 	if err != nil {
 		return nil, err
@@ -124,7 +123,7 @@ func GetCurrentBranch(ctx context.Context) (string, error) {
 func HasUpstream(ctx context.Context) (bool, error) {
 	_, err := runGit(ctx, "rev-parse", "--abbrev-ref", "@{upstream}")
 	if err != nil {
-		return false, nil // no upstream is not an error, just false
+		return false, nil
 	}
 	return true, nil
 }

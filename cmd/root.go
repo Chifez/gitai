@@ -20,7 +20,6 @@ var rootCmd = &cobra.Command{
 
 // Execute runs the root command. Called from main.go.
 func Execute() {
-	// Create context cancelled on SIGINT/SIGTERM
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 
