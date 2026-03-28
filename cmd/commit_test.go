@@ -28,17 +28,29 @@ func TestCommitCmdFlags(t *testing.T) {
 func TestCommitFlow_DryRun(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 
-	exec.CommandContext(ctx, "git", "init").Run()
-	exec.CommandContext(ctx, "git", "config", "user.name", "Test").Run()
-	exec.CommandContext(ctx, "git", "config", "user.email", "test@example.com").Run()
+	if err := exec.CommandContext(ctx, "git", "init").Run(); err != nil {
+		t.Fatalf("git init failed: %v", err)
+	}
+	if err := exec.CommandContext(ctx, "git", "config", "user.name", "Test").Run(); err != nil {
+		t.Fatalf("git config user.name failed: %v", err)
+	}
+	if err := exec.CommandContext(ctx, "git", "config", "user.email", "test@example.com").Run(); err != nil {
+		t.Fatalf("git config user.email failed: %v", err)
+	}
 
-	os.WriteFile("test.txt", []byte("hello"), 0644)
-	exec.CommandContext(ctx, "git", "add", "test.txt").Run()
+	if err := os.WriteFile("test.txt", []byte("hello"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := exec.CommandContext(ctx, "git", "add", "test.txt").Run(); err != nil {
+		t.Fatalf("git add failed: %v", err)
+	}
 
 	home := filepath.Join(dir, "home")
 	t.Setenv("HOME", home)

@@ -212,7 +212,9 @@ func TestGetValue_UnknownKey(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
 	cfg := Defaults()
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	_, _, err := GetValue("nonexistent")
 	if err == nil {
@@ -225,7 +227,9 @@ func TestSetValue_AllKeys(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
 	cfg := Defaults()
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	cases := []struct {
 		key   string
@@ -278,7 +282,9 @@ func TestSetValue_InvalidMaxLength(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
 	cfg := Defaults()
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	err := SetValue("max_length", "not-a-number")
 	if err == nil {
@@ -291,7 +297,9 @@ func TestSetValue_UnknownKey(t *testing.T) {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("HOME", home)
 	cfg := Defaults()
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	err := SetValue("nonexistent", "value")
 	if err == nil {
@@ -305,7 +313,9 @@ func TestListAll(t *testing.T) {
 	t.Setenv("HOME", home)
 	cfg := Defaults()
 	cfg.APIKey = "sk-list-test"
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	entries, err := ListAll()
 	if err != nil {
@@ -400,7 +410,9 @@ func TestResolveSource_File(t *testing.T) {
 	t.Setenv("GITAI_MODEL", "")
 
 	cfg := Defaults()
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	src := resolveSource("model")
 	if src != "file" {
@@ -457,7 +469,9 @@ func TestEnsureConfig_ExistingFile(t *testing.T) {
 
 	cfg := Defaults()
 	cfg.Style = "emoji"
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	loaded, err := EnsureConfig(nil)
 	if err != nil {
@@ -474,7 +488,9 @@ func TestLoad_WithFlagOverrides(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	cfg := Defaults()
-	Save(&cfg)
+	if err := Save(&cfg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
 
 	flags := map[string]string{
 		"model": "gpt-4o",
