@@ -16,11 +16,11 @@ func TestGenerateMessage_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer valid-key" {
 			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error":{"message":"invalid key"}}`))
+			_, _ = w.Write([]byte(`{"error":{"message":"invalid key"}}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices":[{"message":{"content":"feat: auth system"}}]}`))
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"feat: auth system"}}]}`))
 	}))
 	defer server.Close()
 
@@ -43,7 +43,7 @@ func TestGenerateMessage_Success(t *testing.T) {
 func TestGenerateMessage_AuthError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":{"message":"invalid API key"}}`))
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid API key"}}`))
 	}))
 	defer server.Close()
 
@@ -98,11 +98,11 @@ func TestGenerateMessage_RateLimit(t *testing.T) {
 		attempts++
 		if attempts == 1 {
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":{"message":"rate limited"}}`))
+			_, _ = w.Write([]byte(`{"error":{"message":"rate limited"}}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices":[{"message":{"content":"feat: retry success"}}]}`))
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"feat: retry success"}}]}`))
 	}))
 	defer server.Close()
 
@@ -137,11 +137,11 @@ func TestGenerateMessage_ServerError_Retry(t *testing.T) {
 		attempts++
 		if attempts == 1 {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":{"message":"server error"}}`))
+			_, _ = w.Write([]byte(`{"error":{"message":"server error"}}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices":[{"message":{"content":"feat: recovered"}}]}`))
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"feat: recovered"}}]}`))
 	}))
 	defer server.Close()
 
@@ -166,7 +166,7 @@ func TestGenerateMessage_ServerError_Retry(t *testing.T) {
 func TestGenerateMessage_NoChoices(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"choices":[]}`))
+		_, _ = w.Write([]byte(`{"choices":[]}`))
 	}))
 	defer server.Close()
 
@@ -184,7 +184,7 @@ func TestGenerateMessage_NoChoices(t *testing.T) {
 func TestGenerateMessage_ErrorInBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"error":{"message":"model not found","type":"invalid_request_error","code":"model_not_found"}}`))
+		_, _ = w.Write([]byte(`{"error":{"message":"model not found","type":"invalid_request_error","code":"model_not_found"}}`))
 	}))
 	defer server.Close()
 
@@ -256,7 +256,7 @@ func TestGenerateMessageStream_Success(t *testing.T) {
 func TestGenerateMessageStream_AuthError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":{"message":"invalid key"}}`))
+		_, _ = w.Write([]byte(`{"error":{"message":"invalid key"}}`))
 	}))
 	defer server.Close()
 

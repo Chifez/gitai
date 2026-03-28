@@ -35,6 +35,7 @@ brews:
   - repository:
       owner: Chifez
       name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/Chifez/gitai
     description: AI-powered git commit CLI
     license: MIT
@@ -43,6 +44,7 @@ scoops:
   - repository:
       owner: Chifez
       name: scoop-bucket
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/Chifez/gitai
     description: AI-powered git commit CLI
     license: MIT

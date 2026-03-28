@@ -3,14 +3,17 @@ package git
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
 func TestGitOperations(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 
@@ -18,7 +21,9 @@ func TestGitOperations(t *testing.T) {
 		t.Fatalf("git init failed: %v", err)
 	}
 
-	os.WriteFile("test.txt", []byte("hello"), 0644)
+	if err := os.WriteFile("test.txt", []byte("hello"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	files, err := GetChangedFiles(ctx)
 	if err != nil {
 		t.Fatalf("GetChangedFiles failed: %v", err)
@@ -83,8 +88,10 @@ func TestGitOperations(t *testing.T) {
 func TestStageAll_TrackedOnly(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 	runGit(ctx, "init")
@@ -92,13 +99,19 @@ func TestStageAll_TrackedOnly(t *testing.T) {
 	runGit(ctx, "config", "user.email", "test@test.com")
 
 	// Create and commit a file
-	os.WriteFile("tracked.txt", []byte("v1"), 0644)
+	if err := os.WriteFile("tracked.txt", []byte("v1"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	runGit(ctx, "add", "tracked.txt")
 	runGit(ctx, "commit", "-m", "initial")
 
 	// Modify tracked file and create an untracked file
-	os.WriteFile("tracked.txt", []byte("v2"), 0644)
-	os.WriteFile("untracked.txt", []byte("new"), 0644)
+	if err := os.WriteFile("tracked.txt", []byte("v2"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.WriteFile("untracked.txt", []byte("new"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 
 	// Stage tracked only
 	if err := StageAll(ctx, false); err != nil {
@@ -114,15 +127,19 @@ func TestStageAll_TrackedOnly(t *testing.T) {
 func TestStageAll_IncludingUntracked(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 	runGit(ctx, "init")
 	runGit(ctx, "config", "user.name", "Test")
 	runGit(ctx, "config", "user.email", "test@test.com")
 
-	os.WriteFile("file.txt", []byte("hello"), 0644)
+	if err := os.WriteFile("file.txt", []byte("hello"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 
 	if err := StageAll(ctx, true); err != nil {
 		t.Fatalf("StageAll(true) failed: %v", err)
@@ -137,8 +154,10 @@ func TestStageAll_IncludingUntracked(t *testing.T) {
 func TestGetChangedFiles_Clean(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 	runGit(ctx, "init")
@@ -146,7 +165,9 @@ func TestGetChangedFiles_Clean(t *testing.T) {
 	runGit(ctx, "config", "user.email", "test@test.com")
 
 	// Create and commit a file
-	os.WriteFile("file.txt", []byte("content"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "file.txt"), []byte("content"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	runGit(ctx, "add", ".")
 	runGit(ctx, "commit", "-m", "init")
 
@@ -162,8 +183,10 @@ func TestGetChangedFiles_Clean(t *testing.T) {
 func TestGetChangedFiles_AllStatuses(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 	runGit(ctx, "init")
@@ -171,16 +194,24 @@ func TestGetChangedFiles_AllStatuses(t *testing.T) {
 	runGit(ctx, "config", "user.email", "test@test.com")
 
 	// Create files and commit
-	os.WriteFile("modify.txt", []byte("v1"), 0644)
-	os.WriteFile("delete.txt", []byte("v1"), 0644)
+	if err := os.WriteFile("modify.txt", []byte("v1"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+	if err := os.WriteFile("delete.txt", []byte("v1"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	runGit(ctx, "add", ".")
 	runGit(ctx, "commit", "-m", "init")
 
 	// Create different status scenarios
-	os.WriteFile("modify.txt", []byte("v2"), 0644) // modified
+	if err := os.WriteFile("modify.txt", []byte("v2"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	// Stage the deletion so git shows "D " (index deletion)
 	runGit(ctx, "rm", "delete.txt")
-	os.WriteFile("new.txt", []byte("new"), 0644) // untracked
+	if err := os.WriteFile("new.txt", []byte("new"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 
 	files, err := GetChangedFiles(ctx)
 	if err != nil {
@@ -206,8 +237,10 @@ func TestGetChangedFiles_AllStatuses(t *testing.T) {
 func TestGetStagedDiff_Empty(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 	runGit(ctx, "init")
@@ -224,15 +257,19 @@ func TestGetStagedDiff_Empty(t *testing.T) {
 func TestPush_NoRemote(t *testing.T) {
 	dir := t.TempDir()
 	origDir, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(origDir)
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
 	ctx := context.Background()
 	runGit(ctx, "init")
 	runGit(ctx, "config", "user.name", "Test")
 	runGit(ctx, "config", "user.email", "test@test.com")
 
-	os.WriteFile("test.txt", []byte("hello"), 0644)
+	if err := os.WriteFile("test.txt", []byte("hello"), 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
 	runGit(ctx, "add", ".")
 	runGit(ctx, "commit", "-m", "init")
 
