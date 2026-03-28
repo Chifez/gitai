@@ -38,3 +38,11 @@ brews:
     homepage: https://github.com/Chifez/gitai
     description: AI-powered git commit CLI
     license: MIT
+
+scoops:
+  - repository:
+      owner: Chifez
+      name: scoop-bucket
+    homepage: https://github.com/Chifez/gitai
+    description: AI-powered git commit CLI
+    license: MIT

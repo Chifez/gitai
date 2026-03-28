@@ -8,6 +8,9 @@
 # Homebrew (Mac/Linux)
 brew install gitai
 
+# Scoop (Windows)
+scoop install gitai
+
 # Go install
 go install github.com/Chifez/gitai@latest
 
@@ -78,7 +81,7 @@ gitai config path
 ### Config File (`~/.gitai/config.yaml`)
 
 ```yaml
-provider: openai
+provider: openai # options: openai, mock
 model: gpt-4o-mini
 style: conventional
 auto_push: true
@@ -149,7 +152,16 @@ import (
 )
 ```
 
-All package under `pkg/` are public and importable.
+All packages under `pkg/` are public and importable.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Run the test suite (`go test ./...`) to ensure all tests pass
+4. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ## License
 
