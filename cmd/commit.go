@@ -58,26 +58,23 @@ func init() {
 func runCommit(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
-	// --- Load config ---
 	flagOverrides := buildFlagOverrides(cmd)
 	cfg, err := config.EnsureConfig(flagOverrides)
 	if err != nil {
 		return err
 	}
 
-	// --- Staging ---
 	pickMode, _ := cmd.Flags().GetBool("pick")
 	allMode, _ := cmd.Flags().GetBool("all")
 	includeUntracked, _ := cmd.Flags().GetBool("include-untracked")
 	dryRun, _ := cmd.Flags().GetBool("dry-run")
 
 	if !dryRun {
-		if err := handleStaging(ctx, cmd, args, pickMode, allMode, includeUntracked); err != nil {
+		if err := handleStaging(ctx, args, pickMode, allMode, includeUntracked); err != nil {
 			return err
 		}
 	}
 
-	// --- Get diff ---
 	diff, err := git.GetStagedDiff(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get staged diff: %w", err)
@@ -93,14 +90,12 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		ui.Warn("Large diff detected, showing first %d tokens.", git.MaxTokens)
 	}
 
-	// --- Build provider ---
 	p, err := cfg.BuildProvider()
 	if err != nil {
 		ui.Error("%v", err)
 		return err
 	}
 
-	// --- Generate message ---
 	opts := provider.Options{
 		Style:       cfg.Style,
 		MaxLength:   cfg.MaxLength,
@@ -121,13 +116,11 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// --- Dry run: just display ---
 	if dryRun {
 		ui.PrintMessage("Generated commit message (dry run):", message)
 		return nil
 	}
 
-	// --- Review loop ---
 	skipReview, _ := cmd.Flags().GetBool("yes")
 	regenCount := 0
 	const maxRegens = 10
@@ -169,14 +162,12 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// --- Commit ---
 	if err := git.Commit(ctx, message); err != nil {
 		ui.Error("Commit failed: %v", err)
 		return err
 	}
 	ui.Success("Committed: %s", firstLine(message))
 
-	// --- Push ---
 	if err := handlePush(ctx, cmd, cfg); err != nil {
 		// Commit succeeded but push failed — don't return error, just warn
 		ui.Warn("Commit succeeded. %v", err)
@@ -187,7 +178,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 }
 
 // handleStaging handles all staging scenarios (A through F from the PRD).
-func handleStaging(ctx context.Context, cmd *cobra.Command, args []string, pickMode, allMode, includeUntracked bool) error {
+func handleStaging(ctx context.Context, args []string, pickMode, allMode, includeUntracked bool) error {
 
 	switch {
 	case allMode:
@@ -436,8 +427,6 @@ func handlePush(ctx context.Context, cmd *cobra.Command, cfg *config.Config) err
 
 	return nil
 }
-
-// --- Helpers ---
 
 func buildFlagOverrides(cmd *cobra.Command) map[string]string {
 	overrides := make(map[string]string)

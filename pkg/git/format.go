@@ -15,7 +15,6 @@ const (
 // exceeds the token budget. Returns the cleaned diff and a bool indicating
 // whether it was truncated.
 func SanitizeDiff(diff string) (string, bool) {
-	// Summarise binary file changes: "Binary files a/foo and b/foo differ"
 	re := regexp.MustCompile(`(?m)^Binary files a/(.+) and b/.+ differ$`)
 	diff = re.ReplaceAllString(diff, "Binary file modified: $1")
 
